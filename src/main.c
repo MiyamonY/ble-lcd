@@ -21,6 +21,9 @@
  * This application uses the @ref srvlib_conn_params module.
  */
 
+#include <stdint.h>
+#include <string.h>
+
 #include "app_button.h"
 #include "app_timer.h"
 #include "app_uart.h"
@@ -30,13 +33,15 @@
 #include "ble_conn_params.h"
 #include "ble_hci.h"
 #include "ble_nus.h"
+#include "lcd.h"
 #include "nordic_common.h"
 #include "nrf.h"
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
 #include "softdevice_handler.h"
-#include <stdint.h>
-#include <string.h>
+
+#include "nrf_delay.h"
+#include "nrf_drv_gpiote.h"
 
 #define NRF_CLOCK_LFCLKSRC                                                                                                                 \
   {                                                                                                                                        \
@@ -87,6 +92,10 @@
 
 #define UART_TX_BUF_SIZE 256 /**< UART TX buffer size. */
 #define UART_RX_BUF_SIZE 256 /**< UART RX buffer size. */
+#define RX_PIN_NUMBER 23
+#define TX_PIN_NUMBER 19
+#define RTS_PIN_NUMBER 0
+#define CTS_PIN_NUMBER 0
 
 static ble_nus_t m_nus;                                  /**< Structure to identify the Nordic UART Service. */
 static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID; /**< Handle of the current connection. */
@@ -129,6 +138,46 @@ void assert_nrf_callback(uint16_t line_num, const uint8_t *p_file_name)
   app_error_handler(DEAD_BEEF, line_num, p_file_name);
 }
 
+void send_clear_command(void)
+{
+  uint8_t clear_com[] = {'$', 0, '\n'};
+  for (uint16_t i = 0; i < sizeof(clear_com); i++) {
+    while (app_uart_put(clear_com[i]) != NRF_SUCCESS)
+      ;
+    nrf_delay_ms(2);
+  }
+
+  return;
+}
+
+void send_move_cursor(uint8_t row, uint8_t col)
+{
+  uint8_t move_cursor_com[] = {'$', 1, 0, 0, '\n'};
+  move_cursor_com[2] = row;
+  move_cursor_com[3] = col;
+  for (uint16_t i = 0; i < sizeof(move_cursor_com); i++) {
+    while (app_uart_put(move_cursor_com[i]) != NRF_SUCCESS)
+      ;
+    nrf_delay_ms(2);
+  }
+
+  return;
+}
+
+void send_data(uint8_t data)
+{
+  uint8_t data_com[] = {'$', 2, 0, '\n'};
+  data_com[2] = data;
+
+  for (uint16_t i = 0; i < sizeof(data_com); i++) {
+    while (app_uart_put(data_com[i]) != NRF_SUCCESS)
+      ;
+    nrf_delay_ms(2);
+  }
+
+  return;
+}
+
 /**@brief Function for the GAP initialization.
  *
  * @details This function will set up all the necessary GAP (Generic Access Profile) parameters of
@@ -169,15 +218,11 @@ static void gap_params_init(void)
 static void nus_data_handler(ble_nus_t *p_nus, uint8_t *p_data, uint16_t length)
 {
   for (uint32_t i = 0; i < length; i++) {
-    while (app_uart_put(p_data[i]) != NRF_SUCCESS)
-      ;
+    send_data(p_data[i]);
   }
-  NRF_LOG_INFO("Received %s\r\n", (int32_t)p_data);
+  NRF_LOG_INFO("BLE Received %s\r\n", (int32_t)p_data);
 
-  while (app_uart_put('\r') != NRF_SUCCESS)
-    ;
-  while (app_uart_put('\n') != NRF_SUCCESS)
-    ;
+  return;
 }
 /**@snippet [Handling the data received over BLE] */
 
@@ -423,9 +468,16 @@ void uart_event_handle(app_uart_evt_t *p_event)
   switch (p_event->evt_type) {
   case APP_UART_DATA_READY:
     UNUSED_VARIABLE(app_uart_get(&data_array[index]));
-    index++;
 
+    index++;
     if ((data_array[index - 1] == '\n') || (index >= (BLE_NUS_MAX_DATA_LEN))) {
+      if (index < BLE_NUS_MAX_DATA_LEN) {
+        data_array[index - 1] = '\0';
+        NRF_LOG_INFO("Uart received: %s", (uint32_t)data_array);
+      } else {
+        NRF_LOG_INFO("Uart buffer is full\n");
+      }
+
       err_code = ble_nus_string_send(&m_nus, data_array, index);
       if (err_code != NRF_ERROR_INVALID_STATE) {
         APP_ERROR_CHECK(err_code);
@@ -452,12 +504,6 @@ void uart_event_handle(app_uart_evt_t *p_event)
 /**@brief  Function for initializing the UART module.
  */
 /**@snippet [UART Initialization] */
-#if 1
-#define RX_PIN_NUMBER 2
-#define TX_PIN_NUMBER 3
-#define RTS_PIN_NUMBER 1
-#define CTS_PIN_NUMBER 0
-
 static void uart_init(void)
 {
   uint32_t err_code;
@@ -472,7 +518,7 @@ static void uart_init(void)
   APP_UART_FIFO_INIT(&comm_params, UART_RX_BUF_SIZE, UART_TX_BUF_SIZE, uart_event_handle, APP_IRQ_PRIORITY_LOW, err_code);
   APP_ERROR_CHECK(err_code);
 }
-#endif
+
 /**@snippet [UART Initialization] */
 
 /**@brief Function for initializing the Advertising functionality.
@@ -503,8 +549,7 @@ static void advertising_init(void)
   APP_ERROR_CHECK(err_code);
 }
 
-/**@brief Function for placing the application in low power state while waiting for events.
- */
+/* @brief Function for placing the application in low power state while waiting for events. */
 static void power_manage(void)
 {
   uint32_t err_code = sd_app_evt_wait();
