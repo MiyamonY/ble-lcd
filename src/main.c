@@ -490,10 +490,10 @@ void uart_event_handle(app_uart_evt_t *p_event)
         NRF_LOG_INFO("Uart buffer is full\n");
       }
 
-      err_code = ble_nus_string_send(&m_nus, data_array, index);
-      if (err_code != NRF_ERROR_INVALID_STATE) {
-        APP_ERROR_CHECK(err_code);
-      }
+      /* uint32_t err_code = ble_nus_string_send(&m_nus, data_array, index); */
+      /* if (err_code != NRF_ERROR_INVALID_STATE) { */
+      /*   APP_ERROR_CHECK(err_code); */
+      /* } */
 
       index = 0;
     }
