@@ -217,10 +217,43 @@ static void gap_params_init(void)
 /**@snippet [Handling the data received over BLE] */
 static void nus_data_handler(ble_nus_t *p_nus, uint8_t *p_data, uint16_t length)
 {
-  for (uint32_t i = 0; i < length; i++) {
-    send_data(p_data[i]);
+  static uint8_t row = 0;
+  static uint8_t col = 0;
+
+  NRF_LOG_DEBUG("BLE Received\n", (int32_t)p_data);
+  NRF_LOG_DEBUG("****\n");
+  if ((length == 1) && (p_data[0] == 0x7F)) {
+    send_clear_command();
+    row = 0;
+    col = 0;
+    /* NRF_LOG_INFO("clear command\n"); */
+  } else if ((length == 1) && (p_data[0] == 0x2C)) {
+    if (row != 0) {
+      row--;
+    }
+    send_move_cursor(row, 0);
+    /* NRF_LOG_INFO("cursor up\n"); */
+  } else if ((length == 1) && (p_data[0] == 0x3C)) {
+    row++;
+    row %= 4;
+    send_move_cursor(row, 0);
+    NRF_LOG_DEBUG("cursor down\n");
+  } else {
+    for (uint32_t i = 0; i < length; i++) {
+      NRF_LOG_DEBUG("0x%02x\n", p_data[i]);
+      if ((0x20 <= p_data[i]) && (p_data[i] <= 0xFD)) {
+        send_data(p_data[i]);
+        col++;
+        if (19 < col) {
+          col = 0;
+          row++;
+          row %= 4;
+          send_move_cursor(row, 0);
+        }
+      }
+    }
   }
-  NRF_LOG_INFO("BLE Received %s\r\n", (int32_t)p_data);
+  NRF_LOG_DEBUG("****\n");
 
   return;
 }
@@ -475,7 +508,6 @@ void uart_event_handle(app_uart_evt_t *p_event)
 {
   static uint8_t data_array[BLE_NUS_MAX_DATA_LEN];
   static uint8_t index = 0;
-  uint32_t err_code;
 
   switch (p_event->evt_type) {
   case APP_UART_DATA_READY:
@@ -485,9 +517,9 @@ void uart_event_handle(app_uart_evt_t *p_event)
     if ((data_array[index - 1] == '\n') || (index >= (BLE_NUS_MAX_DATA_LEN))) {
       if (index < BLE_NUS_MAX_DATA_LEN) {
         data_array[index - 1] = '\0';
-        NRF_LOG_INFO("Uart received: %s", (uint32_t)data_array);
+        NRF_LOG_DEBUG("Uart received: %s", (uint32_t)data_array);
       } else {
-        NRF_LOG_INFO("Uart buffer is full\n");
+        NRF_LOG_DEBUG("Uart buffer is full\n");
       }
 
       /* uint32_t err_code = ble_nus_string_send(&m_nus, data_array, index); */
