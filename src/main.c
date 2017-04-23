@@ -333,20 +333,24 @@ static void on_ble_evt(ble_evt_t *p_ble_evt)
 
   switch (p_ble_evt->header.evt_id) {
   case BLE_GAP_EVT_CONNECTED:
+    NRF_LOG_INFO("BLE_GAP_EVT_CONNECTED\n");
     m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
     break; // BLE_GAP_EVT_CONNECTED
 
   case BLE_GAP_EVT_DISCONNECTED:
+    NRF_LOG_INFO("BLE_GAP_EVT_DISCONNECTED\n");
     m_conn_handle = BLE_CONN_HANDLE_INVALID;
     break; // BLE_GAP_EVT_DISCONNECTED
 
   case BLE_GAP_EVT_SEC_PARAMS_REQUEST:
+    NRF_LOG_INFO("BLE_GAP_EVT_SEC_PARAMS_REQUEST\n");
     // Pairing not supported
     err_code = sd_ble_gap_sec_params_reply(m_conn_handle, BLE_GAP_SEC_STATUS_PAIRING_NOT_SUPP, NULL, NULL);
     APP_ERROR_CHECK(err_code);
     break; // BLE_GAP_EVT_SEC_PARAMS_REQUEST
 
   case BLE_GATTS_EVT_SYS_ATTR_MISSING:
+    NRF_LOG_INFO("BLE_GATTS_EVT_SYS_ATTR_MISSING\n");
     // No system attributes have been stored.
     err_code = sd_ble_gatts_sys_attr_set(m_conn_handle, NULL, 0, 0);
     APP_ERROR_CHECK(err_code);
@@ -354,22 +358,26 @@ static void on_ble_evt(ble_evt_t *p_ble_evt)
 
   case BLE_GATTC_EVT_TIMEOUT:
     // Disconnect on GATT Client timeout event.
+    NRF_LOG_INFO("BLE_GATTC_EVT_TIMEOUT\n");
     err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gattc_evt.conn_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
     APP_ERROR_CHECK(err_code);
     break; // BLE_GATTC_EVT_TIMEOUT
 
   case BLE_GATTS_EVT_TIMEOUT:
     // Disconnect on GATT Server timeout event.
+    NRF_LOG_INFO("BLE_GATTS_EVT_TIMEOUT\n");
     err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gatts_evt.conn_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
     APP_ERROR_CHECK(err_code);
     break; // BLE_GATTS_EVT_TIMEOUT
 
   case BLE_EVT_USER_MEM_REQUEST:
+    NRF_LOG_INFO("BLE_EVT_USER_MEM_REQUEST\n");
     err_code = sd_ble_user_mem_reply(p_ble_evt->evt.gattc_evt.conn_handle, NULL);
     APP_ERROR_CHECK(err_code);
     break; // BLE_EVT_USER_MEM_REQUEST
 
   case BLE_GATTS_EVT_RW_AUTHORIZE_REQUEST: {
+    NRF_LOG_INFO("BLE_GATTS_EVT_RW_AUTHORIZE_REQUEST\n");
     ble_gatts_evt_rw_authorize_request_t req;
     ble_gatts_rw_authorize_reply_params_t auth_reply;
 
@@ -389,6 +397,10 @@ static void on_ble_evt(ble_evt_t *p_ble_evt)
       }
     }
   } break; // BLE_GATTS_EVT_RW_AUTHORIZE_REQUEST
+
+  case BLE_EVT_TX_COMPLETE:
+    NRF_LOG_INFO("BLE_EVT_TX_COMPLETE\n");
+    break;
 
 #if (NRF_SD_BLE_API_VERSION == 3)
   case BLE_GATTS_EVT_EXCHANGE_MTU_REQUEST:
